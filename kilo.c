@@ -13,6 +13,8 @@
 
 /*** data ***/
 struct editor_config {
+  int current_x;
+  int current_y;
   int screen_rows;
   int screen_cols;
   struct termios original_attrs;
@@ -126,6 +128,11 @@ void full_repaint() {
   hide_cursor(&ab);
   refresh_screen(&ab);
   draw_rows(&ab);
+
+  char buf[32];
+  snprintf(buf, sizeof(buf), "\x1b[%d;%dH", E.current_y + 1, E.current_x +1);
+  ab_append(&ab, buf, strlen(buf));
+
   cursor_to_top_left(&ab);
   unhide_cursor(&ab);
 
@@ -242,6 +249,8 @@ void read_and_process_key() {
 }
 
 void init_editor() {
+  E.current_x = 0;
+  E.current_y = 0;
   if (get_window_size(&E.screen_rows, &E.screen_cols) == -1) {
     die("get_window_size");
   }
