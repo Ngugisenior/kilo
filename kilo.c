@@ -190,6 +190,7 @@ int read_key() {
         if (seq[2] == '~') {
           switch (seq[1]) {
             case '1': return HOME;
+            case '3': return DELETE;
             case '4': return END;
             case '5': return PAGE_UP;
             case '6': return PAGE_DOWN;
