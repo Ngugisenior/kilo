@@ -12,11 +12,18 @@
 #define CTRL_KEY(k) ((k) & 0x1f)
 
 /*** data ***/
+typedef struct erow {
+  int size;
+  char *chars;
+} erow;
+
 struct editor_config {
   int current_x;
   int current_y;
   int screen_rows;
   int screen_cols;
+  int num_rows;
+  erow row;
   struct termios original_attrs;
 };
 struct editor_config E;
@@ -362,6 +369,7 @@ void init_editor() {
 int main() {
   enable_raw_mode();
   init_editor();
+  E.num_rows = 0;
 
   while (1) {
     full_repaint();
