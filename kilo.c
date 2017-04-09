@@ -265,16 +265,24 @@ int get_window_size(int *rows, int *cols) {
 void move_cursor(int key) {
   switch (key) {
     case ARROW_LEFT:
-      E.current_x--;
+      if (E.current_x != 0) {
+        E.current_x--;
+      }
       break;
     case ARROW_RIGHT:
-      E.current_x++;
+      if (E.current_x != E.screen_cols - 1) {
+        E.current_x++;
+      }
       break;
     case ARROW_UP:
-      E.current_y--;
+      if (E.current_y != 0) {
+        E.current_y--;
+      }
       break;
     case ARROW_DOWN:
-      E.current_y++;
+      if (E.current_y != E.screen_rows - 1) {
+        E.current_y++;
+      }
       break;
   }
 }
