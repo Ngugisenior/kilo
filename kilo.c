@@ -133,7 +133,6 @@ void full_repaint() {
   snprintf(buf, sizeof(buf), "\x1b[%d;%dH", E.current_y + 1, E.current_x +1);
   ab_append(&ab, buf, strlen(buf));
 
-  cursor_to_top_left(&ab);
   unhide_cursor(&ab);
 
   write(STDOUT_FILENO, ab.b, ab.len);
@@ -238,6 +237,23 @@ int get_window_size(int *rows, int *cols) {
 
 /*** input ***/
 
+void move_cursor(char key) {
+  switch (key) {
+    case 'a':
+      E.current_x--;
+      break;
+    case 'd':
+      E.current_x++;
+      break;
+    case 'w':
+      E.current_y--;
+      break;
+    case 's':
+      E.current_y++;
+      break;
+  }
+}
+
 void read_and_process_key() {
   char c = read_key();
   switch (c) {
@@ -245,12 +261,20 @@ void read_and_process_key() {
       clear_screen_raw();
       exit(0);
       break;
+    
+    // Cursor movement
+    case 'w':
+    case 'a':
+    case 's':
+    case 'd':
+      move_cursor(c);
+      break;
   }
 }
 
 void init_editor() {
   E.current_x = 0;
-  E.current_y = 0;
+  E.current_y =   0;
   if (get_window_size(&E.screen_rows, &E.screen_cols) == -1) {
     die("get_window_size");
   }
