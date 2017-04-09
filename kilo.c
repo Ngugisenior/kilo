@@ -22,10 +22,10 @@ struct editor_config {
 struct editor_config E;
 
 enum editor_key {
-  ARROW_LEFT = 'a',
-  ARROW_RIGHT = 'd',
-  ARROW_UP = 'w',
-  ARROW_DOWN = 's'
+  ARROW_LEFT = 1000,
+  ARROW_RIGHT,
+  ARROW_UP,
+  ARROW_DOWN
 };
 
 /*** append buffer ***/
@@ -161,7 +161,7 @@ int is_escape_sequence(char buf[]) {
 /*
  * Blocks waiting for a single byte of input, returns the character that byte maps to
  */
-char read_key() {
+int read_key() {
   int num_read;
   char c;
   while ((num_read = read(STDIN_FILENO, &c, 1)) != 1) {
@@ -262,7 +262,7 @@ int get_window_size(int *rows, int *cols) {
 
 /*** input ***/
 
-void move_cursor(char key) {
+void move_cursor(int key) {
   switch (key) {
     case ARROW_LEFT:
       E.current_x--;
@@ -280,7 +280,7 @@ void move_cursor(char key) {
 }
 
 void read_and_process_key() {
-  char c = read_key();
+  int c = read_key();
   switch (c) {
     case CTRL_KEY('q'):  // If pressed ctrl+q
       clear_screen_raw();
