@@ -21,6 +21,13 @@ struct editor_config {
 };
 struct editor_config E;
 
+enum editor_key {
+  ARROW_LEFT = 'a',
+  ARROW_RIGHT = 'd',
+  ARROW_UP = 'w',
+  ARROW_DOWN = 's'
+};
+
 /*** append buffer ***/
 
 #define ABUF_INIT {NULL, 0}
@@ -162,6 +169,24 @@ char read_key() {
       die("read");
     }
   }
+
+  if (c == '\x1b') {
+    char seq[3];
+
+    if (read(STDIN_FILENO, &seq[0], 1) != 1) return '\x1b';
+    if (read(STDIN_FILENO, &seq[1], 1) != 1) return '\x1b';
+
+    if (seq[0] == '[') {
+      switch (seq[1]) {
+        case 'A': return ARROW_UP;
+        case 'B': return ARROW_DOWN;
+        case 'C': return ARROW_RIGHT;
+        case 'D': return ARROW_LEFT;
+      }
+
+      return '\x1b';
+    }
+  }
   return c;
 }
 
@@ -239,16 +264,16 @@ int get_window_size(int *rows, int *cols) {
 
 void move_cursor(char key) {
   switch (key) {
-    case 'a':
+    case ARROW_LEFT:
       E.current_x--;
       break;
-    case 'd':
+    case ARROW_RIGHT:
       E.current_x++;
       break;
-    case 'w':
+    case ARROW_UP:
       E.current_y--;
       break;
-    case 's':
+    case ARROW_DOWN:
       E.current_y++;
       break;
   }
@@ -263,10 +288,10 @@ void read_and_process_key() {
       break;
     
     // Cursor movement
-    case 'w':
-    case 'a':
-    case 's':
-    case 'd':
+    case ARROW_UP:
+    case ARROW_LEFT:
+    case ARROW_DOWN:
+    case ARROW_RIGHT:
       move_cursor(c);
       break;
   }
