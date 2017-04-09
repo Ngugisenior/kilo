@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <sys/ioctl.h>
 #include <string.h>
+#include <sys/types.h>
 
 #define KILO_VERSION "0.0.1"
 
@@ -126,16 +127,24 @@ void draw_welcome_message(struct abuf *ab) {
 }
 
 void draw_rows(struct abuf *ab) {
-  int i;
-  for (i = 0; i < E.screen_rows; i++) {
-    if (i == E.screen_rows / 3) {
-      draw_welcome_message(ab);
+  int row_num;
+  for (row_num = 0; row_num < E.screen_rows; row_num++) {
+    if (row_num >= E.num_rows) {
+      if (row_num == E.screen_rows / 3) {
+        draw_welcome_message(ab);
+      } else {
+        ab_append(ab, "~", 1);
+      }
     } else {
-      ab_append(ab, "~", 1);
+      int len = E.row.size;
+      if (len > E.screen_cols) {
+        len = E.screen_cols;
+      }
+      ab_append(ab, E.row.chars, len);
     }
 
     erase_in_line(ab);
-    if (i < E.screen_rows - 1) {
+    if (row_num < E.screen_rows - 1) {
       ab_append(ab, "\r\n", 2);
     }
   }
@@ -296,6 +305,18 @@ int get_window_size(int *rows, int *cols) {
   return 0;
 }
 
+/*** file i/o ***/
+void open() {
+  char *line = "Hello, World!";
+  ssize_t line_length = 13;
+
+  E.row.size = line_length;
+  E.row.chars = malloc(line_length + 1);
+  memcpy(E.row.chars, line, line_length);
+  E.row.chars[line_length] = '\0';
+  E.num_rows = 1;
+}
+
 /*** input ***/
 
 void move_cursor(int key) {
@@ -369,7 +390,7 @@ void init_editor() {
 int main() {
   enable_raw_mode();
   init_editor();
-  E.num_rows = 0;
+  open();
 
   while (1) {
     full_repaint();
