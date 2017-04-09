@@ -109,8 +109,9 @@ void draw_rows(struct abuf *ab) {
   for (i = 0; i < E.screen_rows; i++) {
     if (i == E.screen_rows / 3) {
       draw_welcome_message(ab);
+    } else {
+      ab_append(ab, "~", 1);
     }
-    ab_append(ab, "~", 1);
 
     erase_in_line(ab);
     if (i < E.screen_rows - 1) {
