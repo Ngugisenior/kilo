@@ -1,3 +1,7 @@
+#define _DEFAULT_SOURCE
+#define _BSD_SOURCE
+#define _GNU_SOURCE
+
 #include <unistd.h>
 #include <termios.h>
 #include <stdlib.h>
@@ -306,15 +310,29 @@ int get_window_size(int *rows, int *cols) {
 }
 
 /*** file i/o ***/
-void open() {
-  char *line = "Hello, World!";
-  ssize_t line_length = 13;
+void file_open(char *filename) {
+  FILE *fp = fopen(filename, "r");
+  if (!fp) {
+    die("fopen");
+  }
 
-  E.row.size = line_length;
-  E.row.chars = malloc(line_length + 1);
-  memcpy(E.row.chars, line, line_length);
-  E.row.chars[line_length] = '\0';
-  E.num_rows = 1;
+  // Read a single line into the editor buffer to display it in the editor
+  char *line = NULL;
+  size_t line_cap = 0;
+  ssize_t line_length = 0;
+  line_length = getline(&line, &line_cap, fp);
+  if (line_length != -1) {
+    if (line_length > 0 && (line[line_length - 1] == '\n' || line[line_length - 1] == '\r')) {
+      line_length--;
+    }
+    E.row.size = line_length;
+    E.row.chars = malloc(line_length + 1);
+    memcpy(E.row.chars, line, line_length);
+    E.row.chars[line_length] = '\0';
+    E.num_rows = 1;
+  }
+  free(line);
+  fclose(fp);
 }
 
 /*** input ***/
@@ -369,7 +387,6 @@ void read_and_process_key() {
     }
     break;
     
-    // Cursor movement
     case ARROW_UP:
     case ARROW_LEFT:
     case ARROW_DOWN:
@@ -387,10 +404,13 @@ void init_editor() {
   }
 }
 
-int main() {
+int main(int argc, char *argv[]) {
   enable_raw_mode();
   init_editor();
-  open();
+
+  if (argc >= 2) {
+    file_open(argv[1]);
+  }
 
   while (1) {
     full_repaint();
