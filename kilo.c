@@ -116,17 +116,18 @@ int query_cursor_position() {
 }
 
 void editor_scroll() {
+
   if (E.current_y < E.row_offset) {  // Scrolling up
     E.row_offset = E.current_y;
   }
   if (E.current_y - E.row_offset >= E.screen_rows) {  // Scrolling down
     E.row_offset = E.current_y - E.screen_rows + 1;
   }
-  if (E.current_x < E.col_offset) {  // Scrolling left
-    E.col_offset = E.current_x;
+  if (E.render_x < E.col_offset) {  // Scrolling left
+    E.col_offset = E.render_x;
   }
-  if (E.current_x - E.col_offset > E.screen_cols) {  // Scrolling right
-    E.col_offset = E.current_x - E.screen_cols + 1;
+  if (E.render_x - E.col_offset > E.screen_cols) {  // Scrolling right
+    E.col_offset = E.render_x - E.screen_cols + 1;
   }
 }
 
@@ -150,6 +151,17 @@ void draw_welcome_message(struct abuf *ab) {
     ab_append(ab, " ", 1);
   }
   ab_append(ab, msg, msg_len);
+}
+
+int row_current_x_to_render_x(erow *row, int current_x) {
+  int render_x = 0;
+  for (int i = 0; i < current_x; i++) {
+    if (row->chars[i] == '\t') {
+        render_x += (KILO_TAB_STOP - 1) - (render_x % KILO_TAB_STOP);
+    }
+    render_x++;
+  }
+  return render_x;
 }
 
 void draw_rows(struct abuf *ab) {
@@ -181,6 +193,11 @@ void draw_rows(struct abuf *ab) {
 }
 
 void full_repaint() {
+  E.render_x = 0;
+  if (E.current_y < E.num_rows) {
+    E.render_x = row_current_x_to_render_x(&E.row[E.current_y], E.current_x);
+  }
+
   editor_scroll();  // update the offset based on current cursor position etc.
 
   struct abuf ab = ABUF_INIT;
@@ -191,7 +208,8 @@ void full_repaint() {
 
   char buf[32];
   // e.g. we're at line 4 of file, but have scrolled 5 lines in, so cursor should be rendered at row idx 0
-  snprintf(buf, sizeof(buf), "\x1b[%d;%dH", E.current_y - E.row_offset + 1, E.current_x - E.col_offset + 1);  // position cursor
+  snprintf(buf, sizeof(buf), "\x1b[%d;%dH", E.current_y - E.row_offset + 1, 
+                                            E.render_x - E.col_offset + 1);  // position cursor
   ab_append(&ab, buf, strlen(buf));
 
   unhide_cursor(&ab);
@@ -415,7 +433,7 @@ void file_open(char *filename) {
 
 void move_cursor(int key) {
   // Get the row if the cursor is actually on a line
-  erow* row = (E.current_y >= E.num_rows) ? NULL : &E.row[E.current_y];
+  erow *row = (E.current_y >= E.num_rows) ? NULL : &E.row[E.current_y];
 
   switch (key) {
     case ARROW_LEFT:
@@ -467,11 +485,21 @@ void read_and_process_key() {
       break;
 
     case END:
-      E.current_y = E.screen_rows - 1;
+      if (E.current_y < E.num_rows) {
+        E.current_x = E.row[E.current_y].size;
+      }
       break;
 
     case PAGE_UP:
     case PAGE_DOWN: {
+      if (c == PAGE_UP) {
+        E.current_y = E.row_offset; 
+      } else if (c == PAGE_DOWN) {
+        E.current_y = E.row_offset + E.screen_rows - 1;
+        if (E.current_y > E.num_rows) {
+          E.current_y = E.num_rows;
+        }
+      }
       int times = E.screen_rows;
       while (times--) {
         move_cursor(c == PAGE_UP ? ARROW_UP : ARROW_DOWN);
@@ -490,7 +518,7 @@ void read_and_process_key() {
 
 void init_editor() {
   E.current_x = 0;
-  E.current_y =   0;
+  E.current_y = 0;
   E.render_x = 0;
   E.render_y = 0;
   E.num_rows = 0;
