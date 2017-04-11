@@ -13,6 +13,7 @@
 #include <sys/types.h>
 #include <time.h>
 #include <stdarg.h>
+#include <fcntl.h>
 
 #define KILO_VERSION "0.0.1"
 #define KILO_TAB_STOP 8
@@ -46,6 +47,7 @@ struct editor_config {
 struct editor_config E;
 
 enum editor_key {
+  BACKSPACE = 127,
   ARROW_LEFT = 1000,
   ARROW_RIGHT,
   ARROW_UP,
@@ -409,7 +411,7 @@ int get_window_size(int *rows, int *cols) {
 /* Copies row into render buffer, and applies any transformations 
  * required before rendering the text to the terminal
  */
-void editor_update_row(erow *row) {
+void editor_build_render_row(erow *row) {
   // Count number of tabs in the row, so that we know how much space to allocate
   int num_tabs = 0;
   for (int i = 0; i < row->size; i++) {
@@ -450,9 +452,20 @@ void editor_append_row(char *line, size_t line_length) {
   E.row[at].render = NULL;
   E.row[at].render_size = 0;
 
-  editor_update_row(&E.row[at]);
+  editor_build_render_row(&E.row[at]);
 
   E.num_rows++;  // we've just copied the line into a new 
+}
+
+void editor_row_insert_char(erow *row, int index, int c) {
+  if (0 > index || index > row->size) {
+    index = row->size;
+  }
+  row->chars = realloc(row->chars, row->size + 2);
+  memmove(&row->chars[index + 1], &row->chars[index], row->size - index + 1);  // shift bytes after the insert idx
+  row->chars[index] = c;
+  row->size++;
+  editor_build_render_row(row);  // build render buffer corresponding to char buffer
 }
 
 /*** file i/o ***/
@@ -473,8 +486,51 @@ void file_open(char *filename) {
     }
     editor_append_row(line, line_length);
   }
+  E.filename = filename;
   free(line);
   fclose(fp);
+}
+
+char *rows_to_string(int *buffer_len) {
+  int total_len = 0;
+  int j;
+  for (j = 0; j < E.num_rows; j++) {
+    total_len += E.row[j].size + 1;  // +1 for newline chars after each row
+  }
+  *buffer_len = total_len;
+  
+  char *buf = malloc(total_len);  // reference to start of allocated memory
+  char *p = buf;  // running pointer indicating the addresses to copy rows into
+  for (j = 0; j < E.num_rows; j++) {
+    memcpy(p, E.row[j].chars, E.row[j].size);
+    p += E.row[j].size;
+    *p = '\n';
+    p++;
+  }
+
+  return buf;
+}
+
+void save_to_disk() {
+  if (E.filename == NULL) return;
+
+  int len;
+  char *buf = rows_to_string(&len);
+
+  int fd = open(E.filename, O_RDWR | O_CREAT, 0644);
+  ftruncate(fd, len);
+  write(fd, buf, len);
+  close(fd);
+  free(buf);
+}
+
+/*** editor operations ***/
+void insert_char(int c) {
+  if (E.current_y == E.num_rows) {  // If we're at the end of the document
+    editor_append_row("", 0);
+  }
+  editor_row_insert_char(&E.row[E.current_y], E.current_x, c);
+  E.current_x++;
 }
 
 /*** input ***/
@@ -523,6 +579,9 @@ void move_cursor(int key) {
 void read_and_process_key() {
   int c = read_key();
   switch (c) {
+    case '\r':
+      break;
+
     case CTRL_KEY('q'):  // If pressed ctrl+q
       clear_screen_raw();
       exit(0);
@@ -537,6 +596,11 @@ void read_and_process_key() {
         E.current_x = E.row[E.current_y].size;
       }
       break;
+
+    case BACKSPACE:
+    case CTRL_KEY('h'):
+    case DELETE:
+      break; 
 
     case PAGE_UP:
     case PAGE_DOWN: {
@@ -561,7 +625,16 @@ void read_and_process_key() {
     case ARROW_RIGHT:
       move_cursor(c);
       break;
+
+    case CTRL_KEY('l'):
+    case '\x1b':
+      break;
+
+    default:
+      insert_char(c);
+      break;
   }
+
 }
 
 void init_editor() {
