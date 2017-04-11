@@ -28,6 +28,8 @@ typedef struct erow {
 struct editor_config {
   int current_x;  // cursor coordinates
   int current_y;
+  int render_x;  // coordinates in render buffer
+  int render_y;
   int row_offset;  // how many rows have we scrolled by (i.e. that are now off screen)?
   int col_offset;  // how many columns have we scrolled by?
   int screen_rows;  // the width and height of the terminal window
@@ -489,6 +491,8 @@ void read_and_process_key() {
 void init_editor() {
   E.current_x = 0;
   E.current_y =   0;
+  E.render_x = 0;
+  E.render_y = 0;
   E.num_rows = 0;
   E.row_offset = 0;
   E.col_offset = 0;
