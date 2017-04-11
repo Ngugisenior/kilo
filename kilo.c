@@ -13,13 +13,16 @@
 #include <sys/types.h>
 
 #define KILO_VERSION "0.0.1"
+#define KILO_TAB_STOP 8
 
 #define CTRL_KEY(k) ((k) & 0x1f)
 
 /*** data ***/
 typedef struct erow {
   int size;  // number of bytes in the row
+  int render_size;
   char *chars;  // characters in the row
+  char *render;
 } erow;
 
 struct editor_config {
@@ -159,13 +162,13 @@ void draw_rows(struct abuf *ab) {
         ab_append(ab, "~", 1);
       }
     } else {  // drawing a row that has content
-      int len = E.row[file_row].size - E.col_offset;
+      int len = E.row[file_row].render_size - E.col_offset;
       if (len < 0) len = 0;
       if (len > E.screen_cols) {
         len = E.screen_cols;  // truncate line if required
       }
       
-      ab_append(ab, &E.row[file_row].chars[E.col_offset], len);  // copy the characters of that row into the append buffer
+      ab_append(ab, &E.row[file_row].render[E.col_offset], len);  // copy the characters of that row into the append buffer
     }
 
     erase_in_line(ab);
@@ -334,6 +337,39 @@ int get_window_size(int *rows, int *cols) {
 }
 
 /*** row operations ***/
+
+/* Copies row into render buffer, and applies any transformations 
+ * required before rendering the text to the terminal
+ */
+void editor_update_row(erow *row) {
+  // Count number of tabs in the row, so that we know how much space to allocate
+  int num_tabs = 0;
+  for (int i = 0; i < row->size; i++) {
+    if (row->chars[i] == '\t') {
+      num_tabs++;
+    }
+  }
+
+  free(row->render);
+  row->render = malloc(row->size + num_tabs*(KILO_TAB_STOP - 1) + 1);
+  int idx = 0;
+  for (int i = 0; i < row->size; i++) {
+    // Copy the data into the render buffer, rendering tabs as multiple spaces
+    if (row->chars[i] == '\t') {
+      row->render[idx++] = '>';
+      while (idx % KILO_TAB_STOP != 0) {
+        row->render[idx++] = '>';
+      }
+    } else {
+      row->render[idx++] = row->chars[i];
+    }
+  }
+  row->render[idx] = '\0';
+  row->render_size = idx;
+}
+
+/* Construction and initialisation of new editor rows
+ */
 void editor_append_row(char *line, size_t line_length) {
   E.row = realloc(E.row, sizeof(erow) * (E.num_rows + 1));
 
@@ -342,6 +378,12 @@ void editor_append_row(char *line, size_t line_length) {
   E.row[at].chars = malloc(line_length + 1);  // enough for the line plus terminator
   memcpy(E.row[at].chars, line, line_length);  // copy the line into newly allocated memory
   E.row[at].chars[line_length] = '\0';  // we still have the 1 byte left over for the terminator
+
+  E.row[at].render = NULL;
+  E.row[at].render_size = 0;
+
+  editor_update_row(&E.row[at]);
+
   E.num_rows++;  // we've just copied the line into a new 
 }
 
