@@ -25,7 +25,8 @@ typedef struct erow {
 struct editor_config {
   int current_x;  // cursor coordinates
   int current_y;
-  int row_offset;  // what row are we currently scrolled to?
+  int row_offset;  // how many rows have we scrolled by (i.e. that are now off screen)?
+  int col_offset;  // how many columns have we scrolled by?
   int screen_rows;  // the width and height of the terminal window
   int screen_cols;
   int num_rows;  // the number of rows in the file with content
@@ -116,6 +117,12 @@ void editor_scroll() {
   if (E.current_y - E.row_offset >= E.screen_rows) {  // Scrolling down
     E.row_offset = E.current_y - E.screen_rows + 1;
   }
+  if (E.current_x < E.col_offset) {  // Scrolling left
+    E.col_offset = E.current_x;
+  }
+  if (E.current_x - E.col_offset > E.screen_cols) {  // Scrolling right
+    E.col_offset = E.current_x - E.screen_cols + 1;
+  }
 }
 
 void refresh_screen(struct abuf *ab) {
@@ -152,11 +159,13 @@ void draw_rows(struct abuf *ab) {
         ab_append(ab, "~", 1);
       }
     } else {  // drawing a row that has content
-      int len = E.row[file_row].size;
+      int len = E.row[file_row].size - E.col_offset;
+      if (len < 0) len = 0;
       if (len > E.screen_cols) {
         len = E.screen_cols;  // truncate line if required
       }
-      ab_append(ab, E.row[file_row].chars, len);  // copy the characters of that row into the append buffer
+      
+      ab_append(ab, &E.row[file_row].chars[E.col_offset], len);  // copy the characters of that row into the append buffer
     }
 
     erase_in_line(ab);
@@ -177,7 +186,7 @@ void full_repaint() {
 
   char buf[32];
   // e.g. we're at line 4 of file, but have scrolled 5 lines in, so cursor should be rendered at row idx 0
-  snprintf(buf, sizeof(buf), "\x1b[%d;%dH", E.current_y - E.row_offset + 1, E.current_x +1);  // position cursor
+  snprintf(buf, sizeof(buf), "\x1b[%d;%dH", E.current_y - E.row_offset + 1, E.current_x - E.col_offset + 1);  // position cursor
   ab_append(&ab, buf, strlen(buf));
 
   unhide_cursor(&ab);
@@ -368,9 +377,7 @@ void move_cursor(int key) {
       }
       break;
     case ARROW_RIGHT:
-      if (E.current_x != E.screen_cols - 1) {
-        E.current_x++;
-      }
+      E.current_x++;
       break;
     case ARROW_UP:
       if (E.current_y != 0) {
@@ -424,6 +431,7 @@ void init_editor() {
   E.current_y =   0;
   E.num_rows = 0;
   E.row_offset = 0;
+  E.col_offset = 0;
   E.row = NULL;
   if (get_window_size(&E.screen_rows, &E.screen_cols) == -1) {
     die("get_window_size");
