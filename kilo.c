@@ -370,6 +370,9 @@ void file_open(char *filename) {
 /*** input ***/
 
 void move_cursor(int key) {
+  // Get the row if the cursor is actually on a line
+  erow* row = (E.current_y >= E.num_rows) ? NULL : &E.row[E.current_y];
+
   switch (key) {
     case ARROW_LEFT:
       if (E.current_x != 0) {
@@ -377,7 +380,9 @@ void move_cursor(int key) {
       }
       break;
     case ARROW_RIGHT:
-      E.current_x++;
+      if (E.current_x < row->size) {
+        E.current_x++;
+      }
       break;
     case ARROW_UP:
       if (E.current_y != 0) {
@@ -389,6 +394,12 @@ void move_cursor(int key) {
         E.current_y++;
       }
       break;
+  }
+  // Get the line again since current_y could have changed an thus
+  // we may be referring to a different row
+  row = (E.current_y >= E.num_rows) ? NULL : &E.row[E.current_y];
+  if (E.current_x > row->size) {
+    E.current_x = row->size;
   }
 }
 
