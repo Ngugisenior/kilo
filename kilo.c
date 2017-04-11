@@ -356,9 +356,9 @@ void editor_update_row(erow *row) {
   for (int i = 0; i < row->size; i++) {
     // Copy the data into the render buffer, rendering tabs as multiple spaces
     if (row->chars[i] == '\t') {
-      row->render[idx++] = '>';
+      row->render[idx++] = ' ';
       while (idx % KILO_TAB_STOP != 0) {
-        row->render[idx++] = '>';
+        row->render[idx++] = ' ';
       }
     } else {
       row->render[idx++] = row->chars[i];
