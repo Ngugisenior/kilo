@@ -18,18 +18,18 @@
 
 /*** data ***/
 typedef struct erow {
-  int size;
-  char *chars;
+  int size;  // number of bytes in the row
+  char *chars;  // characters in the row
 } erow;
 
 struct editor_config {
-  int current_x;
+  int current_x;  // cursor coordinates
   int current_y;
-  int screen_rows;
+  int screen_rows;  // the width and height of the terminal window
   int screen_cols;
-  int num_rows;
-  erow row;
-  struct termios original_attrs;
+  int num_rows;  // the number of rows in the file with content
+  erow *row;  // an array of erows, the internal representation of a row
+  struct termios original_attrs;  // the original terminal attributes to reset on end
 };
 struct editor_config E;
 
@@ -131,24 +131,24 @@ void draw_welcome_message(struct abuf *ab) {
 }
 
 void draw_rows(struct abuf *ab) {
-  int row_num;
-  for (row_num = 0; row_num < E.screen_rows; row_num++) {
-    if (row_num >= E.num_rows) {
-      if (row_num == E.screen_rows / 3) {
+  int y;
+  for (y = 0; y < E.screen_rows; y++) {
+    if (y >= E.num_rows) {  // no content on the row
+      if (E.num_rows == 0 && y == E.screen_rows / 3) {
         draw_welcome_message(ab);
       } else {
         ab_append(ab, "~", 1);
       }
-    } else {
-      int len = E.row.size;
+    } else {  // drawing a row that has content
+      int len = E.row[y].size;
       if (len > E.screen_cols) {
-        len = E.screen_cols;
+        len = E.screen_cols;  // truncate line if required
       }
-      ab_append(ab, E.row.chars, len);
+      ab_append(ab, E.row[y].chars, len);  // copy the characters of that row into the append buffer
     }
 
     erase_in_line(ab);
-    if (row_num < E.screen_rows - 1) {
+    if (y < E.screen_rows - 1) {
       ab_append(ab, "\r\n", 2);
     }
   }
@@ -309,6 +309,18 @@ int get_window_size(int *rows, int *cols) {
   return 0;
 }
 
+/*** row operations ***/
+void editor_append_row(char *line, size_t line_length) {
+  E.row = realloc(E.row, sizeof(erow) * (E.num_rows + 1));
+
+  int at = E.num_rows;  // write to the next line
+  E.row[at].size = line_length;
+  E.row[at].chars = malloc(line_length + 1);  // enough for the line plus terminator
+  memcpy(E.row[at].chars, line, line_length);  // copy the line into newly allocated memory
+  E.row[at].chars[line_length] = '\0';  // we still have the 1 byte left over for the terminator
+  E.num_rows++;  // we've just copied the line into a new 
+}
+
 /*** file i/o ***/
 void file_open(char *filename) {
   FILE *fp = fopen(filename, "r");
@@ -320,16 +332,12 @@ void file_open(char *filename) {
   char *line = NULL;
   size_t line_cap = 0;
   ssize_t line_length = 0;
-  line_length = getline(&line, &line_cap, fp);
-  if (line_length != -1) {
+
+  while ((line_length = getline(&line, &line_cap, fp)) != -1) {
     if (line_length > 0 && (line[line_length - 1] == '\n' || line[line_length - 1] == '\r')) {
       line_length--;
     }
-    E.row.size = line_length;
-    E.row.chars = malloc(line_length + 1);
-    memcpy(E.row.chars, line, line_length);
-    E.row.chars[line_length] = '\0';
-    E.num_rows = 1;
+    editor_append_row(line, line_length);
   }
   free(line);
   fclose(fp);
@@ -399,6 +407,8 @@ void read_and_process_key() {
 void init_editor() {
   E.current_x = 0;
   E.current_y =   0;
+  E.num_rows = 0;
+  E.row = NULL;
   if (get_window_size(&E.screen_rows, &E.screen_cols) == -1) {
     die("get_window_size");
   }
