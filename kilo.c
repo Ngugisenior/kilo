@@ -228,7 +228,7 @@ void set_status_message(const char *fmt, ...) {
 }
 
 void draw_message_bar(struct abuf *ab) {
-  ab_append(ab, "\x1b[K", 3);
+  erase_in_line(ab);  // clear out the message bar
   int msg_len = strlen(E.statusmsg);
   if (msg_len > E.screen_cols) {
     msg_len = E.screen_cols;
