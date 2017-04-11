@@ -36,6 +36,7 @@ struct editor_config {
   int screen_cols;
   int num_rows;  // the number of rows in the file with content
   erow *row;  // an array of erows, the internal representation of a row
+  char *filename;  // the name of the file that is currently open
   struct termios original_attrs;  // the original terminal attributes to reset on end
 };
 struct editor_config E;
@@ -181,16 +182,32 @@ void draw_rows(struct abuf *ab) {
       if (len > E.screen_cols) {
         len = E.screen_cols;  // truncate line if required
       }
-      
       ab_append(ab, &E.row[file_row].render[E.col_offset], len);  // copy the characters of that row into the append buffer
     }
 
     erase_in_line(ab);
-    if (y < E.screen_rows - 1) {
-      ab_append(ab, "\r\n", 2);
-    }
+    ab_append(ab, "\r\n", 2);
   }
 }
+
+void draw_status_bar(struct abuf *ab) {
+  ab_append(ab, "\x1b[7m", 4);
+  
+  char status[80];
+  int len = snprintf(status, sizeof(status), "%.20s - %d lines",
+    E.filename ? E.filename : "[No Name]", E.num_rows);
+
+  if (len > E.screen_cols) {
+    len = E.screen_cols;
+  }
+  ab_append(ab, status, len);
+
+  while (len < E.screen_cols) {
+    ab_append(ab, " ", 1);
+    len++;
+  }
+  ab_append(ab, "\x1b[m", 3);
+} 
 
 void full_repaint() {
   E.render_x = 0;
@@ -205,6 +222,7 @@ void full_repaint() {
   hide_cursor(&ab);
   refresh_screen(&ab);
   draw_rows(&ab);
+  draw_status_bar(&ab);
 
   char buf[32];
   // e.g. we're at line 4 of file, but have scrolled 5 lines in, so cursor should be rendered at row idx 0
@@ -525,9 +543,11 @@ void init_editor() {
   E.row_offset = 0;
   E.col_offset = 0;
   E.row = NULL;
+  E.filename = NULL;
   if (get_window_size(&E.screen_rows, &E.screen_cols) == -1) {
     die("get_window_size");
   }
+  E.screen_rows--;  // leave room for the status bar
 }
 
 int main(int argc, char *argv[]) {
