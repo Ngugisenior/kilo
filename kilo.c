@@ -176,7 +176,7 @@ void full_repaint() {
 void die(const char *s) {
   clear_screen_raw();
   perror(s);
-  exit(1);
+  exit(EXIT_FAILURE);
 }
 
 int is_escape_sequence(char buf[]) {
