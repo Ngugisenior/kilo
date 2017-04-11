@@ -25,6 +25,7 @@ typedef struct erow {
 struct editor_config {
   int current_x;  // cursor coordinates
   int current_y;
+  int row_offset;  // what row are we currently scrolled to?
   int screen_rows;  // the width and height of the terminal window
   int screen_cols;
   int num_rows;  // the number of rows in the file with content
@@ -108,6 +109,15 @@ int query_cursor_position() {
   return -1;
 }
 
+void editor_scroll() {
+  if (E.current_y < E.row_offset) {  // Scrolling up
+    E.row_offset = E.current_y;
+  }
+  if (E.current_y - E.row_offset >= E.screen_rows) {  // Scrolling down
+    E.row_offset = E.current_y - E.screen_rows + 1;
+  }
+}
+
 void refresh_screen(struct abuf *ab) {
   cursor_to_top_left(ab);
 }
@@ -133,18 +143,20 @@ void draw_welcome_message(struct abuf *ab) {
 void draw_rows(struct abuf *ab) {
   int y;
   for (y = 0; y < E.screen_rows; y++) {
-    if (y >= E.num_rows) {  // no content on the row
+    int file_row = y + E.row_offset;
+
+    if (file_row >= E.num_rows) {  // no content on the row
       if (E.num_rows == 0 && y == E.screen_rows / 3) {
         draw_welcome_message(ab);
       } else {
         ab_append(ab, "~", 1);
       }
     } else {  // drawing a row that has content
-      int len = E.row[y].size;
+      int len = E.row[file_row].size;
       if (len > E.screen_cols) {
         len = E.screen_cols;  // truncate line if required
       }
-      ab_append(ab, E.row[y].chars, len);  // copy the characters of that row into the append buffer
+      ab_append(ab, E.row[file_row].chars, len);  // copy the characters of that row into the append buffer
     }
 
     erase_in_line(ab);
@@ -155,6 +167,8 @@ void draw_rows(struct abuf *ab) {
 }
 
 void full_repaint() {
+  editor_scroll();  // update the offset based on current cursor position etc.
+
   struct abuf ab = ABUF_INIT;
 
   hide_cursor(&ab);
@@ -162,7 +176,8 @@ void full_repaint() {
   draw_rows(&ab);
 
   char buf[32];
-  snprintf(buf, sizeof(buf), "\x1b[%d;%dH", E.current_y + 1, E.current_x +1);
+  // e.g. we're at line 4 of file, but have scrolled 5 lines in, so cursor should be rendered at row idx 0
+  snprintf(buf, sizeof(buf), "\x1b[%d;%dH", E.current_y - E.row_offset + 1, E.current_x +1);  // position cursor
   ab_append(&ab, buf, strlen(buf));
 
   unhide_cursor(&ab);
@@ -363,7 +378,7 @@ void move_cursor(int key) {
       }
       break;
     case ARROW_DOWN:
-      if (E.current_y != E.screen_rows - 1) {
+      if (E.current_y != E.num_rows - 1) {  // can only go down to bottom of file
         E.current_y++;
       }
       break;
@@ -408,6 +423,7 @@ void init_editor() {
   E.current_x = 0;
   E.current_y =   0;
   E.num_rows = 0;
+  E.row_offset = 0;
   E.row = NULL;
   if (get_window_size(&E.screen_rows, &E.screen_cols) == -1) {
     die("get_window_size");
