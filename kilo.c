@@ -383,8 +383,11 @@ void move_cursor(int key) {
       }
       break;
     case ARROW_RIGHT:
-      if (E.current_x < row->size) {
+      if (E.row && E.current_x < row->size) {
         E.current_x++;
+      } else if (row && E.current_x == row->size) {
+        E.current_y++;
+        E.current_x = 0;
       }
       break;
     case ARROW_UP:
@@ -393,7 +396,7 @@ void move_cursor(int key) {
       }
       break;
     case ARROW_DOWN:
-      if (E.current_y != E.num_rows - 1) {  // can only go down to bottom of file
+      if (E.current_y < E.num_rows) {  // can only go down to bottom of file
         E.current_y++;
       }
       break;
@@ -401,8 +404,9 @@ void move_cursor(int key) {
   // Get the line again since current_y could have changed an thus
   // we may be referring to a different row
   row = (E.current_y >= E.num_rows) ? NULL : &E.row[E.current_y];
-  if (E.current_x > row->size) {
-    E.current_x = row->size;
+  int row_length = row ? row->size : 0;
+  if (E.current_x > row_length) {
+    E.current_x = row_length;
   }
 }
 
