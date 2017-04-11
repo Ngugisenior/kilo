@@ -377,6 +377,9 @@ void move_cursor(int key) {
     case ARROW_LEFT:
       if (E.current_x != 0) {
         E.current_x--;
+      } else {
+        E.current_y--;
+        E.current_x = E.row[E.current_y].size;
       }
       break;
     case ARROW_RIGHT:
