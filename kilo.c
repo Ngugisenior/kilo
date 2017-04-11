@@ -11,6 +11,8 @@
 #include <sys/ioctl.h>
 #include <string.h>
 #include <sys/types.h>
+#include <time.h>
+#include <stdarg.h>
 
 #define KILO_VERSION "0.0.1"
 #define KILO_TAB_STOP 8
@@ -37,6 +39,8 @@ struct editor_config {
   int num_rows;  // the number of rows in the file with content
   erow *row;  // an array of erows, the internal representation of a row
   char *filename;  // the name of the file that is currently open
+  char statusmsg[80];
+  time_t statusmsg_time;
   struct termios original_attrs;  // the original terminal attributes to reset on end
 };
 struct editor_config E;
@@ -193,9 +197,10 @@ void draw_rows(struct abuf *ab) {
 void draw_status_bar(struct abuf *ab) {
   ab_append(ab, "\x1b[7m", 4);
   
-  char status[80];
+  char status[80], rstatus[80]; 
   int len = snprintf(status, sizeof(status), "%.20s - %d lines",
     E.filename ? E.filename : "[No Name]", E.num_rows);
+  int rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d", E.current_y + 1, E.num_rows);
 
   if (len > E.screen_cols) {
     len = E.screen_cols;
@@ -203,11 +208,35 @@ void draw_status_bar(struct abuf *ab) {
   ab_append(ab, status, len);
 
   while (len < E.screen_cols) {
+    if (E.screen_cols - len == rlen) {  // right justify
+      ab_append(ab, rstatus, rlen);
+      break;
+    }
     ab_append(ab, " ", 1);
     len++;
   }
   ab_append(ab, "\x1b[m", 3);
-} 
+  ab_append(ab, "\r\n", 2);
+}
+
+void set_status_message(const char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  vsnprintf(E.statusmsg, sizeof(E.statusmsg), fmt, ap);
+  va_end(ap);
+  E.statusmsg_time = time(NULL);
+}
+
+void draw_message_bar(struct abuf *ab) {
+  ab_append(ab, "\x1b[K", 3);
+  int msg_len = strlen(E.statusmsg);
+  if (msg_len > E.screen_cols) {
+    msg_len = E.screen_cols;
+  }
+  if (msg_len && time(NULL) - E.statusmsg_time < 5) {
+    ab_append(ab, E.statusmsg, msg_len);
+  }
+}
 
 void full_repaint() {
   E.render_x = 0;
@@ -223,6 +252,7 @@ void full_repaint() {
   refresh_screen(&ab);
   draw_rows(&ab);
   draw_status_bar(&ab);
+  draw_message_bar(&ab);
 
   char buf[32];
   // e.g. we're at line 4 of file, but have scrolled 5 lines in, so cursor should be rendered at row idx 0
@@ -544,10 +574,12 @@ void init_editor() {
   E.col_offset = 0;
   E.row = NULL;
   E.filename = NULL;
+  E.statusmsg[0] = '\0';
+  E.statusmsg_time = 0;
   if (get_window_size(&E.screen_rows, &E.screen_cols) == -1) {
     die("get_window_size");
   }
-  E.screen_rows--;  // leave room for the status bar
+  E.screen_rows -= 2;  // leave room for the status bar & msg bar
 }
 
 int main(int argc, char *argv[]) {
@@ -557,6 +589,8 @@ int main(int argc, char *argv[]) {
   if (argc >= 2) {
     file_open(argv[1]);
   }
+
+  set_status_message("Quit: Ctrl+Q");
 
   while (1) {
     full_repaint();
